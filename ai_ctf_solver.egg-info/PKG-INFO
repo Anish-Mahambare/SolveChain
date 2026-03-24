@@ -1,0 +1,11 @@
+Metadata-Version: 2.4
+Name: ai-ctf-solver
+Version: 0.1.0
+Summary: Modular Python project scaffold for an AI-powered CTF solver
+Requires-Python: >=3.11
+Description-Content-Type: text/markdown
+Requires-Dist: PyPDF2>=3.0.0
+Requires-Dist: Pillow>=10.0.0
+
+# SolveChain
+Making a CTF AI Toolkit while experimenting with Coding Agents 

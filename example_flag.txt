@@ -1,0 +1,2 @@
+This note contains a flag for testing.
+flag{demo_solver_success}

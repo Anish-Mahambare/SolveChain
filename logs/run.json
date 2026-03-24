@@ -1,0 +1,14 @@
+{
+  "status": "success",
+  "flag_found": true,
+  "flag": "flag{demo_solver_success}",
+  "steps_taken": 1,
+  "memory": {
+    "history": [
+      {
+        "tool": "submit_flag",
+        "output": "{\"flag\": \"flag{demo_solver_success}\", \"status\": \"ok\", \"submitted\": true, \"tool\": \"submit_flag\"}"
+      }
+    ]
+  }
+}

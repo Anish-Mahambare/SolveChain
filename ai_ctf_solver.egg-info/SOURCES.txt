@@ -1,0 +1,8 @@
+README.md
+main.py
+pyproject.toml
+ai_ctf_solver.egg-info/PKG-INFO
+ai_ctf_solver.egg-info/SOURCES.txt
+ai_ctf_solver.egg-info/dependency_links.txt
+ai_ctf_solver.egg-info/requires.txt
+ai_ctf_solver.egg-info/top_level.txt
