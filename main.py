@@ -2,13 +2,15 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 from pathlib import Path
 from typing import Any
 
 from solver import solve_challenge
+from webapp import serve
 
 
-def _parse_args() -> argparse.Namespace:
+def _build_solve_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="AI-powered CTF solver CLI")
     parser.add_argument(
         "description",
@@ -30,7 +32,23 @@ def _parse_args() -> argparse.Namespace:
         dest="log_path",
         help="Optional path to save the full solver result as JSON.",
     )
-    return parser.parse_args()
+    return parser
+
+
+def _build_serve_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description="SolveChain browser frontend")
+    parser.add_argument(
+        "--host",
+        default="127.0.0.1",
+        help="Host interface for the web app. Default: 127.0.0.1.",
+    )
+    parser.add_argument(
+        "--port",
+        type=int,
+        default=8000,
+        help="Port for the web app. Default: 8000.",
+    )
+    return parser
 
 
 def _decode_output(raw_output: str) -> Any:
@@ -68,7 +86,13 @@ def _save_logs(log_path: str, result: dict[str, Any]) -> None:
 
 
 def main() -> None:
-    args = _parse_args()
+    if len(sys.argv) > 1 and sys.argv[1] == "serve":
+        args = _build_serve_parser().parse_args(sys.argv[2:])
+        serve(host=args.host, port=args.port)
+        return
+
+    solve_argv = sys.argv[2:] if len(sys.argv) > 1 and sys.argv[1] == "solve" else sys.argv[1:]
+    args = _build_solve_parser().parse_args(solve_argv)
 
     challenge_input = {
         "challenge_description": args.description,

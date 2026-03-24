@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>SolveChain Control Room</title>
+    <link rel="stylesheet" href="/app.css">
+  </head>
+  <body>
+    <div class="page-shell">
+      <header class="hero">
+        <p class="eyebrow">Persistent Solver Frontend</p>
+        <h1>SolveChain Control Room</h1>
+        <p class="hero-copy">
+          Feed the solver prompts all day, inspect every decision it makes, and keep the full CLI-style trace visible in the browser.
+        </p>
+      </header>
+
+      <main class="layout">
+        <section class="panel composer-panel">
+          <div class="panel-heading">
+            <h2>Launch A Solve</h2>
+            <p>Describe the challenge, point at an optional file, and let the agent run.</p>
+          </div>
+
+          <form id="solve-form" class="solver-form">
+            <label class="field">
+              <span>Challenge Prompt</span>
+              <textarea
+                id="description"
+                name="description"
+                rows="8"
+                placeholder="Describe the CTF task, clues, and any expected artifact handling..."
+                required
+              ></textarea>
+            </label>
+
+            <div class="field-row">
+              <label class="field">
+                <span>Artifact Path</span>
+                <input id="file_path" name="file_path" type="text" placeholder="./challenge_file.pdf">
+              </label>
+
+              <label class="field field-compact">
+                <span>Max Steps</span>
+                <input id="max_steps" name="max_steps" type="number" min="1" value="10" required>
+              </label>
+            </div>
+
+            <div class="actions">
+              <button id="submit-button" type="submit">Run Solver</button>
+              <p id="status-line" class="status-line">Ready for the next prompt.</p>
+            </div>
+          </form>
+        </section>
+
+        <section class="panel output-panel">
+          <div class="panel-heading">
+            <h2>Current Run</h2>
+            <p>Summary, logs, tool outputs, and the final flag all stay visible here.</p>
+          </div>
+
+          <div id="empty-state" class="empty-state">
+            No run yet. Submit a prompt to start the trace.
+          </div>
+
+          <div id="result-view" class="result-view hidden">
+            <div id="summary-grid" class="summary-grid"></div>
+
+            <section class="result-section">
+              <div class="section-header">
+                <h3>Execution Log</h3>
+              </div>
+              <pre id="log-output" class="console-block"></pre>
+            </section>
+
+            <section class="result-section">
+              <div class="section-header">
+                <h3>Tool Steps</h3>
+              </div>
+              <div id="steps-list" class="steps-list"></div>
+            </section>
+
+            <section class="result-section">
+              <div class="section-header">
+                <h3>Raw Result</h3>
+              </div>
+              <pre id="raw-result" class="console-block"></pre>
+            </section>
+          </div>
+        </section>
+      </main>
+
+      <section class="panel history-panel">
+        <div class="panel-heading">
+          <h2>Run History</h2>
+          <p>The app stays up, and each solve remains easy to reopen while you keep experimenting.</p>
+        </div>
+        <div id="history-list" class="history-list">
+          <div class="history-empty">Past runs will appear here.</div>
+        </div>
+      </section>
+    </div>
+
+    <script src="/app.js" defer></script>
+  </body>
+</html>
