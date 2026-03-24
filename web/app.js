@@ -8,6 +8,8 @@ const logOutput = document.getElementById("log-output");
 const stepsList = document.getElementById("steps-list");
 const rawResult = document.getElementById("raw-result");
 const historyList = document.getElementById("history-list");
+const recommendationSection = document.getElementById("recommendation-section");
+const recommendationCard = document.getElementById("recommendation-card");
 
 const runHistory = [];
 
@@ -43,6 +45,9 @@ function renderSummary(summary) {
   if (summary.reason) {
     cards.push(["Reason", summary.reason, ""]);
   }
+  if (summary.external_tool) {
+    cards.push(["External Tool", summary.external_tool, ""]);
+  }
 
   summaryGrid.innerHTML = cards
     .map(([label, value, extraClass]) => {
@@ -54,6 +59,28 @@ function renderSummary(summary) {
       `;
     })
     .join("");
+}
+
+function renderRecommendation(recommendation) {
+  if (!recommendation) {
+    recommendationSection.classList.add("hidden");
+    recommendationCard.innerHTML = "";
+    return;
+  }
+
+  const alternatives = Array.isArray(recommendation.alternatives)
+    ? recommendation.alternatives.map((item) => `<li>${escapeHtml(item)}</li>`).join("")
+    : "";
+
+  recommendationCard.innerHTML = `
+    <h4>${escapeHtml(recommendation.tool || "External tool")}</h4>
+    <p>${escapeHtml(recommendation.reason || "No recommendation reason provided.")}</p>
+    ${recommendation.target_file ? `<p><strong>Target:</strong> ${escapeHtml(recommendation.target_file)}</p>` : ""}
+    ${recommendation.password ? `<p><strong>Inferred password:</strong> ${escapeHtml(recommendation.password)}</p>` : ""}
+    ${recommendation.suggested_command ? `<code>${escapeHtml(recommendation.suggested_command)}</code>` : ""}
+    ${alternatives ? `<ul>${alternatives}</ul>` : ""}
+  `;
+  recommendationSection.classList.remove("hidden");
 }
 
 function renderSteps(steps) {
@@ -99,6 +126,7 @@ function renderResult(run) {
   resultView.classList.remove("hidden");
 
   renderSummary(run.summary);
+  renderRecommendation(run.external_recommendation);
   logOutput.textContent = (run.logs && run.logs.length ? run.logs.join("\n") : "No logs captured.");
   renderSteps(run.steps || []);
   rawResult.textContent = JSON.stringify(run.raw_result ?? {}, null, 2);

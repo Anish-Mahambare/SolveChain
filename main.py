@@ -85,6 +85,29 @@ def _save_logs(log_path: str, result: dict[str, Any]) -> None:
     target.write_text(json.dumps(result, indent=2), encoding="utf-8")
 
 
+def _print_external_recommendation(result: dict[str, Any]) -> None:
+    recommendation = result.get("external_recommendation")
+    if not isinstance(recommendation, dict):
+        return
+
+    print("=== External Tool Recommendation ===")
+    print(f"Tool: {recommendation.get('tool', 'unknown')}")
+    print(f"Reason: {recommendation.get('reason', 'No reason provided.')}")
+    if recommendation.get("target_file"):
+        print(f"Target file: {recommendation['target_file']}")
+    if recommendation.get("password"):
+        print(f"Inferred password: {recommendation['password']}")
+    if recommendation.get("suggested_command"):
+        print(f"Suggested command: {recommendation['suggested_command']}")
+
+    alternatives = recommendation.get("alternatives", [])
+    if alternatives:
+        print("Alternatives:")
+        for item in alternatives:
+            print(f"- {item}")
+    print()
+
+
 def main() -> None:
     if len(sys.argv) > 1 and sys.argv[1] == "serve":
         args = _build_serve_parser().parse_args(sys.argv[2:])
@@ -116,6 +139,10 @@ def main() -> None:
         print(f"FLAG: {flag}")
     else:
         print("No flag found.")
+
+    if result.get("external_recommendation"):
+        print()
+        _print_external_recommendation(result)
 
     if args.log_path:
         _save_logs(args.log_path, result)

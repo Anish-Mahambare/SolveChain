@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import base64
+import binascii
 import json
 import logging
+import re
 from typing import Any
 
 from ai_agent import get_next_action, get_tool_descriptions
@@ -15,6 +18,7 @@ from utils.regex_utils import find_flag_candidates
 
 
 LOGGER = logging.getLogger("ctf_solver")
+STEGO_HINT_PATTERN = re.compile(r"steghide:([A-Za-z0-9+/=_-]+)")
 
 
 def _setup_logger() -> None:
@@ -47,6 +51,73 @@ def _collect_text_fragments(value: Any) -> list[str]:
             fragments.extend(_collect_text_fragments(item))
         return fragments
     return []
+
+
+def _decode_base64_if_printable(value: str) -> str | None:
+    compact = "".join(value.split())
+    if len(compact) < 4:
+        return None
+
+    normalized = compact + ("=" * ((4 - len(compact) % 4) % 4))
+    try:
+        decoded = base64.b64decode(normalized, validate=True)
+    except binascii.Error:
+        return None
+
+    try:
+        text = decoded.decode("utf-8")
+    except UnicodeDecodeError:
+        return None
+
+    if not text.strip():
+        return None
+    if any(ord(char) < 32 and char not in "\n\r\t" for char in text):
+        return None
+    return text
+
+
+def _infer_external_tool_recommendation(
+    *,
+    challenge_description: str,
+    files_available: list[str],
+    preprocessing: dict[str, Any],
+    memory: dict[str, Any],
+) -> dict[str, Any] | None:
+    searchable_fragments = [challenge_description]
+    searchable_fragments.extend(_collect_text_fragments(preprocessing))
+    searchable_fragments.extend(
+        _collect_text_fragments(_decode_history_output(str(item.get("output", ""))))
+        for item in memory.get("history", [])
+    )
+    searchable_text = "\n".join(
+        fragment
+        for value in searchable_fragments
+        for fragment in (value if isinstance(value, list) else [value])
+        if isinstance(fragment, str) and fragment.strip()
+    )
+
+    if "steghide" in searchable_text.lower():
+        match = STEGO_HINT_PATTERN.search(searchable_text)
+        encoded_secret = match.group(1) if match else None
+        password = _decode_base64_if_printable(encoded_secret) if encoded_secret else None
+        target_file = files_available[0] if files_available else None
+        recommendation = {
+            "kind": "external_tool_required",
+            "tool": "steghide",
+            "reason": "The available evidence points to a steghide-protected payload, which this app cannot extract with its built-in tools.",
+            "evidence": "A steghide marker was discovered in the challenge data or decoded metadata.",
+            "target_file": target_file,
+            "password": password,
+            "suggested_command": f"steghide extract -sf {target_file} -p {password}" if target_file and password else None,
+            "alternatives": [
+                "Try carving embedded files with custom JPEG segment parsing or general file carvers if the payload is appended rather than stego-protected.",
+                "Implement a JPEG steganalysis pass that inspects quantized DCT coefficients or LSB patterns, though that is not a drop-in replacement for steghide compatibility.",
+                "Use metadata clues to brute-force other extraction tools only if the file format or challenge text suggests an appended archive instead of steganography.",
+            ],
+        }
+        return recommendation
+
+    return None
 
 
 def _build_default_registry() -> ToolRegistry:
@@ -128,6 +199,28 @@ def solve_challenge(challenge_input: dict[str, Any]) -> dict[str, Any]:
             len(context["preprocessing"].get("results", [])),
         )
 
+        external_recommendation = _infer_external_tool_recommendation(
+            challenge_description=challenge_description,
+            files_available=files_available,
+            preprocessing=context["preprocessing"],
+            memory=memory,
+        )
+        if external_recommendation:
+            LOGGER.warning(
+                "Step %s: inferred that an unavailable external tool is required: %s",
+                step,
+                external_recommendation["tool"],
+            )
+            return {
+                "status": "external_tool_required",
+                "flag_found": False,
+                "flag": final_flag,
+                "steps_taken": step - 1,
+                "reason": external_recommendation["reason"],
+                "external_recommendation": external_recommendation,
+                "memory": memory,
+            }
+
         LOGGER.info("Step %s: requesting next action from AI agent", step)
         try:
             action = get_next_action(context, llm_client=llm_client)
@@ -138,6 +231,7 @@ def solve_challenge(challenge_input: dict[str, Any]) -> dict[str, Any]:
                 "status": "error",
                 "reason": error_message,
                 "steps_taken": step - 1,
+                "external_recommendation": external_recommendation,
                 "memory": memory,
             }
 
@@ -187,6 +281,7 @@ def solve_challenge(challenge_input: dict[str, Any]) -> dict[str, Any]:
                 "status": "error",
                 "reason": selected_error or "All ranked tool options failed.",
                 "steps_taken": step - 1,
+                "external_recommendation": external_recommendation,
                 "memory": memory,
             }
 
@@ -210,6 +305,7 @@ def solve_challenge(challenge_input: dict[str, Any]) -> dict[str, Any]:
                 "flag_found": True,
                 "flag": final_flag,
                 "steps_taken": step,
+                "external_recommendation": external_recommendation,
                 "memory": memory,
             }
 
@@ -224,6 +320,12 @@ def solve_challenge(challenge_input: dict[str, Any]) -> dict[str, Any]:
         "flag_found": False,
         "flag": final_flag,
         "steps_taken": max_steps,
+        "external_recommendation": _infer_external_tool_recommendation(
+            challenge_description=challenge_description,
+            files_available=files_available,
+            preprocessing={"results": []},
+            memory=memory,
+        ),
         "memory": memory,
     }
 

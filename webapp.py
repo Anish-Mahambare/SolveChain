@@ -84,9 +84,12 @@ def run_solver_session(description: str, file_path: str | None = None, max_steps
             "flag_found": bool(flag),
             "flag": flag,
             "reason": result.get("reason"),
+            "external_tool": (result.get("external_recommendation") or {}).get("tool"),
+            "suggested_command": (result.get("external_recommendation") or {}).get("suggested_command"),
         },
         "logs": [line for line in log_stream.getvalue().splitlines() if line.strip()],
         "steps": steps,
+        "external_recommendation": result.get("external_recommendation"),
         "raw_result": result,
     }
 
