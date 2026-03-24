@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from tools.base import ToolInput, ToolOutput
-from utils.regex_utils import find_flag_candidates
+from utils.regex_utils import find_flag_candidates, is_likely_flag_candidate
 
 
 def _success(tool: str, **extra: Any) -> ToolOutput:
@@ -52,6 +52,30 @@ def _printable_ratio(raw: bytes) -> float:
         return 0.0
     printable_bytes = sum(chr(byte) in string.printable for byte in raw)
     return printable_bytes / len(raw)
+
+
+def _xor_candidate_score(text: str, printable_ratio: float) -> tuple[float, int, int, int]:
+    ascii_letters = sum(ch in string.ascii_letters for ch in text)
+    digits = sum(ch.isdigit() for ch in text)
+    likely_flags = find_flag_candidates(text)
+    exact_flag_bonus = 0
+    if likely_flags and any(is_likely_flag_candidate(candidate) for candidate in likely_flags):
+        exact_flag_bonus = 1000
+
+    ctf_hint_bonus = 0
+    if "{" in text and "}" in text:
+        ctf_hint_bonus += 50
+    if "_" in text:
+        ctf_hint_bonus += 10
+    if "picoCTF{" in text or "flag{" in text:
+        ctf_hint_bonus += 200
+
+    return (
+        exact_flag_bonus + ctf_hint_bonus + printable_ratio * 100,
+        ascii_letters,
+        digits,
+        -sum(ch == "\ufffd" for ch in text),
+    )
 
 
 def extract_strings(input_data: ToolInput) -> ToolOutput:
@@ -188,17 +212,22 @@ def xor_single_byte_bruteforce(input_data: ToolInput) -> ToolOutput:
     ranked: list[dict[str, Any]] = []
     for key in range(256):
         candidate = bytes(byte ^ key for byte in raw)
+        decoded_text = candidate.decode("utf-8", errors="replace")
+        printable_ratio = round(_printable_ratio(candidate), 4)
         ranked.append(
             {
                 "key": key,
                 "key_hex": f"0x{key:02x}",
-                "printable_ratio": round(_printable_ratio(candidate), 4),
-                "decoded_text": candidate.decode("utf-8", errors="replace"),
+                "printable_ratio": printable_ratio,
+                "decoded_text": decoded_text,
                 "decoded_hex": candidate.hex(),
+                "score": _xor_candidate_score(decoded_text, printable_ratio),
             }
         )
 
-    ranked.sort(key=lambda item: (item["printable_ratio"], sum(ch in string.ascii_letters for ch in item["decoded_text"])), reverse=True)
+    ranked.sort(key=lambda item: item["score"], reverse=True)
+    for item in ranked:
+        item.pop("score", None)
     return _success(tool, input_format=input_format, candidates=ranked[:top_n], total_keys_tested=256)
 
 
