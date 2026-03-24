@@ -4,6 +4,7 @@ import re
 from typing import Any
 
 from tools import execute_tool
+from utils.regex_utils import reconstruct_fragmented_flags
 
 
 BASE64_PATTERN = re.compile(r"^[A-Za-z0-9+/=\s]+$")
@@ -50,6 +51,19 @@ def _preprocess_text(text: str) -> list[dict[str, Any]]:
                     "result": decoded["data"],
                 }
             )
+
+    for candidate in reconstruct_fragmented_flags(text):
+        results.append(
+            {
+                "kind": "reconstructed_flag_fragments",
+                "source": text,
+                "result": {
+                    "status": "ok",
+                    "tool": "fragment_reconstruction",
+                    "flag": candidate,
+                },
+            }
+        )
 
     return results
 

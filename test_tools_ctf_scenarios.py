@@ -8,6 +8,8 @@ from tempfile import TemporaryDirectory
 from PIL import Image, ImageDraw, ImageFont
 from PyPDF2 import PdfWriter
 
+from preprocessing import run_preprocessing
+from solver import solve_challenge
 from tools.builtin_tools import (
     decode_base64,
     decode_hex,
@@ -22,6 +24,7 @@ from tools.builtin_tools import (
 from tools.echo_tool import EchoTool
 from tools.read_file_tool import ReadFileTool
 from tools.submit_flag_tool import SubmitFlagTool
+from utils.regex_utils import reconstruct_fragmented_flags
 
 
 def _load_font() -> ImageFont.ImageFont | ImageFont.FreeTypeFont:
@@ -112,6 +115,57 @@ class ToolScenarioTests(unittest.TestCase):
 
             regex_result = extract_flag_regex({"text": "noise picoCTF{regex_tool} more noise flag{shortish_valid} end"})
             self.assertIn("picoCTF{regex_tool}", regex_result["flags"])
+
+    def test_fragment_reconstruction_from_log_lines(self) -> None:
+        log_text = "\n".join(
+            [
+                "[1990-08-09 10:00:10] INFO FLAGPART: picoCTF{us3_",
+                "[1990-08-09 10:02:55] INFO FLAGPART: y0urlinux_",
+                "[1990-08-09 10:05:54] INFO FLAGPART: sk1lls_",
+                "[1990-08-09 10:05:55] INFO FLAGPART: sk1lls_",
+                "[1990-08-09 10:10:54] INFO FLAGPART: cedfa5fb}",
+            ]
+        )
+        reconstructed = reconstruct_fragmented_flags(log_text)
+        self.assertEqual(reconstructed, ["picoCTF{us3_y0urlinux_sk1lls_cedfa5fb}"])
+
+    def test_solver_reconstructs_fragmented_log_flag(self) -> None:
+        with TemporaryDirectory(dir=".") as tmp:
+            tmpdir = Path(tmp)
+            log_path = tmpdir / "server.log"
+            log_path.write_text(
+                "\n".join(
+                    [
+                        "[1990-08-09 10:00:10] INFO FLAGPART: picoCTF{us3_",
+                        "[1990-08-09 10:00:16] WARN Disk space low",
+                        "[1990-08-09 10:02:55] INFO FLAGPART: y0urlinux_",
+                        "[1990-08-09 10:05:54] INFO FLAGPART: sk1lls_",
+                        "[1990-08-09 10:05:55] INFO FLAGPART: sk1lls_",
+                        "[1990-08-09 10:10:54] INFO FLAGPART: cedfa5fb}",
+                    ]
+                ),
+                encoding="utf-8",
+            )
+
+            preprocessing_result = run_preprocessing(
+                {
+                    "challenge_description": "Reconstruct the flag from repeated fragments in the logs.",
+                    "files_available": [str(log_path)],
+                    "previous_tool_outputs": [],
+                }
+            )
+            flattened = str(preprocessing_result)
+            self.assertIn("picoCTF{us3_y0urlinux_sk1lls_cedfa5fb}", flattened)
+
+            result = solve_challenge(
+                {
+                    "challenge_description": "The logs leak repeated flag fragments. Reconstruct the original flag.",
+                    "files_available": [str(log_path)],
+                    "max_steps": 5,
+                }
+            )
+            self.assertEqual(result["status"], "success")
+            self.assertEqual(result["flag"], "picoCTF{us3_y0urlinux_sk1lls_cedfa5fb}")
 
 
 if __name__ == "__main__":
